@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Play } from "lucide-react";
 import { useDriver, type DriverContext } from "@/lib/driver";
 import { useT, type TFn } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { uploadPhoto } from "@/lib/photos";
+import { fmt, parseNum } from "@/lib/format";
 import { num } from "@/lib/types";
-import { Notice, NumberInput, PhotoPicker, SubmitButton, TopBar, fmt, parseNum } from "@/components/ui";
+import { AppHeader, Notice, NumberInput, PhotoPicker, SubmitButton } from "@/components/common";
+import { Card } from "@/components/ui/card";
 import { DriverFallback } from "@/components/DriverFallback";
 
 export default function StartShiftPage() {
   const state = useDriver();
   const { t } = useT(state.status === "ready" ? state.ctx.profile.preferred_language : "mr");
-  if (state.status !== "ready") return <DriverFallback status={state.status} t={t} />;
+  if (state.status !== "ready") return <DriverFallback status={state.status} t={t} back="/driver" />;
   return <StartForm ctx={state.ctx} t={t} />;
 }
 
@@ -37,10 +40,10 @@ function StartForm({ ctx, t }: { ctx: DriverContext; t: TFn }) {
   if (ctx.todayLog || ctx.openLog) {
     return (
       <>
-        <TopBar title={t("start.title")} back="/driver" />
+        <AppHeader title={t("start.title")} subtitle={machine.name} back="/driver" />
         <main className="flex flex-col gap-4 p-4">
           <Notice kind="warn">{ctx.openLog ? t("home.running") : t("start.alreadyLogged")}</Notice>
-          <Link href="/driver" className="text-center text-lg font-bold underline">
+          <Link href="/driver" className="text-center text-sm font-medium text-primary hover:underline">
             {t("common.home")}
           </Link>
         </main>
@@ -84,18 +87,22 @@ function StartForm({ ctx, t }: { ctx: DriverContext; t: TFn }) {
 
   return (
     <>
-      <TopBar title={t("start.title")} back="/driver" />
+      <AppHeader title={t("start.title")} subtitle={machine.name} back="/driver" />
       <form onSubmit={onSubmit} className="flex flex-col gap-5 p-4">
-        <div className="rounded-2xl bg-ink p-4 text-white">
-          <p className="text-sm font-semibold text-slate-300">
-            {machine.name} · {t("start.lastClosing")}
+        <Card className="gap-1 px-4">
+          <p className="text-xs font-medium text-muted-foreground">{t("start.lastClosing")}</p>
+          <p className="text-2xl font-semibold tracking-tight tabular-nums">
+            {lastClosing != null ? (
+              <>
+                {fmt(lastClosing)} <span className="text-base font-normal text-muted-foreground">{unit}</span>
+              </>
+            ) : (
+              <span className="text-base font-normal text-muted-foreground">{t("start.noPrevious")}</span>
+            )}
           </p>
-          <p className="text-3xl font-extrabold tabular-nums">
-            {lastClosing != null ? `${fmt(lastClosing)} ${unit}` : t("start.noPrevious")}
-          </p>
-        </div>
+        </Card>
 
-        <NumberInput label={`${t("start.opening")} (${unit})`} value={reading} onChange={setReading} disabled={busy} />
+        <NumberInput id="opening" label={t("start.opening")} unit={unit} value={reading} onChange={setReading} disabled={busy} />
         {mismatch && <Notice kind="warn">{t("start.mismatch", { last: fmt(lastClosing!) })}</Notice>}
 
         <PhotoPicker
@@ -110,8 +117,8 @@ function StartForm({ ctx, t }: { ctx: DriverContext; t: TFn }) {
         {error && <Notice kind="error">{error}</Notice>}
         {phase === "done" && <Notice kind="success">{t("start.done")}</Notice>}
 
-        <SubmitButton disabled={busy} color="green">
-          {phase === "uploading" ? t("common.uploading") : phase === "saving" ? t("common.saving") : `▶ ${t("start.submit")}`}
+        <SubmitButton disabled={busy} busy={phase === "uploading" || phase === "saving"} icon={Play}>
+          {phase === "uploading" ? t("common.uploading") : phase === "saving" ? t("common.saving") : t("start.submit")}
         </SubmitButton>
       </form>
     </>

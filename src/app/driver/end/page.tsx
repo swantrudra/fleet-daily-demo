@@ -3,26 +3,30 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Square } from "lucide-react";
 import { useDriver, type DriverContext } from "@/lib/driver";
 import { dateLocale, useT, type TFn } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { uploadPhoto } from "@/lib/photos";
 import { formatDate } from "@/lib/date";
+import { fmt, parseNum } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { num, type Lang, type LogStatus, type ShiftLog } from "@/lib/types";
-import { Notice, NumberInput, PhotoPicker, STATUS_STYLE, SubmitButton, TopBar, fmt, parseNum } from "@/components/ui";
+import { AppHeader, Notice, NumberInput, PhotoPicker, STATUS_STYLE, SubmitButton } from "@/components/common";
+import { Card } from "@/components/ui/card";
 import { DriverFallback } from "@/components/DriverFallback";
 
 export default function EndShiftPage() {
   const state = useDriver();
   const { t, lang } = useT(state.status === "ready" ? state.ctx.profile.preferred_language : "mr");
-  if (state.status !== "ready") return <DriverFallback status={state.status} t={t} />;
+  if (state.status !== "ready") return <DriverFallback status={state.status} t={t} back="/driver" />;
   if (!state.ctx.openLog) {
     return (
       <>
-        <TopBar title={t("end.title")} back="/driver" />
+        <AppHeader title={t("end.title")} subtitle={state.ctx.machine.name} back="/driver" />
         <main className="flex flex-col gap-4 p-4">
           <Notice kind="warn">{t("end.noOpen")}</Notice>
-          <Link href="/driver" className="text-center text-lg font-bold underline">
+          <Link href="/driver" className="text-center text-sm font-medium text-primary hover:underline">
             {t("common.home")}
           </Link>
         </main>
@@ -33,6 +37,11 @@ export default function EndShiftPage() {
 }
 
 const STATUSES: LogStatus[] = ["worked", "idle", "breakdown"];
+const SELECTED_RING: Record<LogStatus, string> = {
+  worked: "ring-green-600",
+  idle: "ring-amber-500",
+  breakdown: "ring-red-600",
+};
 
 function EndForm({ ctx, log, t, lang }: { ctx: DriverContext; log: ShiftLog; t: TFn; lang: Lang }) {
   const router = useRouter();
@@ -91,55 +100,69 @@ function EndForm({ ctx, log, t, lang }: { ctx: DriverContext; log: ShiftLog; t: 
 
   return (
     <>
-      <TopBar title={t("end.title")} back="/driver" />
+      <AppHeader title={t("end.title")} subtitle={machine.name} back="/driver" />
       <form onSubmit={onSubmit} className="flex flex-col gap-5 p-4">
-        <div className="rounded-2xl bg-ink p-4 text-white">
-          <p className="text-sm font-semibold text-slate-300">
-            {machine.name} · {t("end.opening")}
-            {log.log_date !== ctx.today && ` · ${formatDate(log.log_date, dateLocale(lang))}`}
-          </p>
-          <p className="text-3xl font-extrabold tabular-nums">
-            {fmt(opening)} {unit}
-          </p>
-        </div>
-
-        <NumberInput label={`${t("end.closing")} (${unit})`} value={reading} onChange={setReading} disabled={busy} />
-        {tooLow && <Notice kind="error">{t("end.tooLow", { opening: fmt(opening) })}</Notice>}
-
-        <div className={`rounded-2xl border-4 p-4 text-center ${worked != null ? "border-green-600 bg-green-50" : "border-slate-300 bg-white"}`}>
-          <p className="text-base font-bold text-slate-600">{t("end.result")}</p>
-          <p className="text-5xl font-extrabold tabular-nums">
-            {worked != null ? fmt(worked) : "—"} <span className="text-2xl">{unit}</span>
-          </p>
-        </div>
+        <Card className="grid grid-cols-2 gap-0 divide-x py-0">
+          <div className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">
+              {t("end.opening")}
+              {log.log_date !== ctx.today && ` · ${formatDate(log.log_date, dateLocale(lang))}`}
+            </p>
+            <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums">
+              {fmt(opening)} <span className="text-sm font-normal text-muted-foreground">{unit}</span>
+            </p>
+          </div>
+          <div className={cn("p-4 transition-colors", worked != null && "bg-blue-50/60")}>
+            <p className="text-xs font-medium text-muted-foreground">{t("end.result")}</p>
+            <p className={cn("mt-1 text-xl font-semibold tracking-tight tabular-nums", worked != null ? "text-blue-700" : "text-zinc-300")}>
+              {worked != null ? fmt(worked) : "—"} <span className="text-sm font-normal text-muted-foreground">{unit}</span>
+            </p>
+          </div>
+        </Card>
 
         <NumberInput
+          id="closing"
+          label={t("end.closing")}
+          unit={unit}
+          value={reading}
+          onChange={setReading}
+          disabled={busy}
+          invalid={tooLow}
+        />
+        {tooLow && <Notice kind="error">{t("end.tooLow", { opening: fmt(opening) })}</Notice>}
+
+        <NumberInput
+          id="diesel"
           label={`${t("end.diesel")} · ${t("end.optional")}`}
+          unit={t("unit.litres")}
           value={diesel}
           onChange={setDiesel}
           disabled={busy}
         />
 
-        <fieldset>
-          <legend className="mb-2 text-base font-bold">{t("end.status")}</legend>
+        <fieldset className="space-y-2">
+          <legend className="mb-2 text-sm font-medium">{t("end.status")}</legend>
           <div className="grid grid-cols-3 gap-2">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={busy}
-                onClick={() => setStatus(s)}
-                aria-pressed={status === s}
-                className={`flex h-20 flex-col items-center justify-center rounded-xl border-4 text-base font-bold ${
-                  status === s ? `${STATUS_STYLE[s].badge} border-ink` : "border-slate-300 bg-white"
-                }`}
-              >
-                <span className="text-2xl" aria-hidden>
-                  {STATUS_STYLE[s].icon}
-                </span>
-                {t(`status.${s}`)}
-              </button>
-            ))}
+            {STATUSES.map((s) => {
+              const { cls, icon: I } = STATUS_STYLE[s];
+              const selected = status === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setStatus(s)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "flex h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[13px] leading-tight font-medium transition-all active:scale-[0.98]",
+                    selected ? cn(cls, "ring-2 ring-inset", SELECTED_RING[s]) : "border bg-white text-zinc-600 hover:bg-zinc-50",
+                  )}
+                >
+                  <I className="size-5" />
+                  <span className="text-center">{t(`status.${s}`)}</span>
+                </button>
+              );
+            })}
           </div>
         </fieldset>
 
@@ -155,8 +178,8 @@ function EndForm({ ctx, log, t, lang }: { ctx: DriverContext; log: ShiftLog; t: 
         {error && <Notice kind="error">{error}</Notice>}
         {phase === "done" && <Notice kind="success">{t("end.done")}</Notice>}
 
-        <SubmitButton disabled={busy || tooLow}>
-          {phase === "uploading" ? t("common.uploading") : phase === "saving" ? t("common.saving") : `■ ${t("end.submit")}`}
+        <SubmitButton disabled={busy || tooLow} busy={phase === "uploading" || phase === "saving"} variant="dark" icon={Square}>
+          {phase === "uploading" ? t("common.uploading") : phase === "saving" ? t("common.saving") : t("end.submit")}
         </SubmitButton>
       </form>
     </>

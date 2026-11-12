@@ -1,26 +1,29 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "Fleet Daily",
   description: "Daily machine readings for excavation fleets",
   applicationName: "Fleet Daily",
-  appleWebApp: { capable: true, title: "Fleet Daily", statusBarStyle: "black" },
+  appleWebApp: { capable: true, title: "Fleet Daily", statusBarStyle: "default" },
   icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full">
-        <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-slate-100 shadow-xl">{children}</div>
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+      <body className="min-h-dvh">
+        {children}
         <ServiceWorker />
       </body>
     </html>

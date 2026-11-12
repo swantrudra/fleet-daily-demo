@@ -2,17 +2,20 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Send, TriangleAlert } from "lucide-react";
 import { useDriver, type DriverContext } from "@/lib/driver";
 import { useT, type TFn } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { uploadPhoto } from "@/lib/photos";
-import { Notice, PhotoPicker, SubmitButton, TopBar } from "@/components/ui";
+import { AppHeader, Notice, PhotoPicker, SubmitButton } from "@/components/common";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { DriverFallback } from "@/components/DriverFallback";
 
 export default function BreakdownPage() {
   const state = useDriver();
   const { t } = useT(state.status === "ready" ? state.ctx.profile.preferred_language : "mr");
-  if (state.status !== "ready") return <DriverFallback status={state.status} t={t} />;
+  if (state.status !== "ready") return <DriverFallback status={state.status} t={t} back="/driver" />;
   return <BreakdownForm ctx={state.ctx} t={t} />;
 }
 
@@ -58,10 +61,11 @@ function BreakdownForm({ ctx, t }: { ctx: DriverContext; t: TFn }) {
 
   return (
     <>
-      <TopBar title={t("bd.title")} back="/driver" />
+      <AppHeader title={t("bd.title")} subtitle={machine.name} back="/driver" />
       <form onSubmit={onSubmit} className="flex flex-col gap-5 p-4">
-        <div className="rounded-2xl bg-red-600 p-4 text-white">
-          <p className="text-3xl font-extrabold">⚠️ {machine.name}</p>
+        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+          <TriangleAlert className="size-5 shrink-0" />
+          <p className="text-base font-semibold">{machine.name}</p>
         </div>
 
         <PhotoPicker
@@ -73,25 +77,26 @@ function BreakdownForm({ ctx, t }: { ctx: DriverContext; t: TFn }) {
           disabled={busy}
         />
 
-        <label className="block">
-          <span className="mb-2 block text-base font-bold">
-            {t("bd.note")} <span className="font-normal text-slate-600">· {t("end.optional")}</span>
-          </span>
-          <textarea
+        <div className="space-y-2">
+          <Label htmlFor="note">
+            {t("bd.note")} <span className="font-normal text-muted-foreground">· {t("end.optional")}</span>
+          </Label>
+          <Textarea
+            id="note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             disabled={busy}
             rows={3}
             maxLength={300}
             placeholder={t("bd.notePlaceholder")}
-            className="w-full rounded-xl border-2 border-slate-400 bg-white p-3 text-lg focus:border-ink focus:outline-none"
+            className="min-h-24 rounded-xl bg-white text-base md:text-base"
           />
-        </label>
+        </div>
 
         {error && <Notice kind="error">{error}</Notice>}
         {phase === "done" && <Notice kind="success">{t("bd.done")}</Notice>}
 
-        <SubmitButton disabled={busy} color="red">
+        <SubmitButton disabled={busy} busy={phase === "uploading" || phase === "saving"} variant="danger" icon={Send}>
           {phase === "uploading" ? t("common.uploading") : phase === "saving" ? t("common.saving") : t("bd.submit")}
         </SubmitButton>
       </form>

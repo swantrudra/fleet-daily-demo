@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Calendar, MapPin, Play, Square, TriangleAlert } from "lucide-react";
 import { useDriver, type DriverContext } from "@/lib/driver";
 import { dateLocale, useT, type TFn } from "@/lib/i18n";
-import { supabase } from "@/lib/supabase/client";
 import { formatDate, formatTime } from "@/lib/date";
+import { fmt } from "@/lib/format";
 import { num, type Lang } from "@/lib/types";
-import { Badge, LangSwitch, TopBar, fmt } from "@/components/ui";
+import { ActionLink, AppHeader, LangSwitch, LogoutButton, SectionTitle, StatusBadge } from "@/components/common";
+import { Card } from "@/components/ui/card";
 import { DriverFallback } from "@/components/DriverFallback";
-
 
 export default function DriverHome() {
   const state = useDriver();
@@ -19,7 +18,6 @@ export default function DriverHome() {
 }
 
 function Home({ ctx, t, lang }: { ctx: DriverContext; t: TFn; lang: Lang }) {
-  const router = useRouter();
   const { machine, todayLog, openLog, recent } = ctx;
   const unit = t(`unit.${machine.reading_type}`);
 
@@ -27,116 +25,77 @@ function Home({ ctx, t, lang }: { ctx: DriverContext; t: TFn; lang: Lang }) {
   const canStart = !todayLog && !openLog;
   const canEnd = !!openLog;
 
-  async function logout() {
-    await supabase().auth.signOut();
-    router.replace("/login");
-  }
-
   return (
     <>
-      <TopBar
-        title={t("app.name")}
-        right={
-          <button onClick={logout} className="h-12 rounded-lg px-3 text-sm font-semibold text-slate-300">
-            {t("home.logout")}
-          </button>
-        }
-      />
-      <main className="flex flex-col gap-4 p-4">
-        <section className="rounded-2xl border-2 border-slate-300 bg-white p-4">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-4xl font-extrabold">{machine.name}</p>
-              <p className="text-lg font-semibold text-slate-600">
-                {t(`type.${machine.type}`)}
-                {ctx.siteName ? ` · ${ctx.siteName}` : ""}
-              </p>
+      <AppHeader subtitle={ctx.profile.full_name} actions={<LogoutButton label={t("home.logout")} />} />
+      <main className="flex flex-col gap-6 p-4">
+        <Card className="gap-3 px-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-2xl font-semibold tracking-tight">{machine.name}</p>
+              <p className="text-sm text-muted-foreground">{t(`type.${machine.type}`)}</p>
             </div>
-            <span className="text-3xl" aria-hidden>
-              🚜
-            </span>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
-            <p className="text-base font-semibold">
-              {t("home.today")}: {formatDate(ctx.today, dateLocale(lang))}
-            </p>
-            <Badge
-              status={todayState === "running" ? "running" : todayState === "ended" ? "worked" : "idle"}
+            <StatusBadge
+              status={todayState === "running" ? "running" : todayState === "ended" ? "worked" : "pending"}
               label={t(`home.${todayState}`)}
             />
           </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Calendar className="size-4" />
+              {formatDate(ctx.today, dateLocale(lang))}
+            </span>
+            {ctx.siteName && (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="size-4" />
+                {ctx.siteName}
+              </span>
+            )}
+          </div>
           {todayLog && todayLog.closing_reading == null && (
-            <p className="mt-2 text-sm text-slate-600">{t("home.startedAt", { time: formatTime(todayLog.started_at) })}</p>
+            <p className="text-sm text-blue-700">{t("home.startedAt", { time: formatTime(todayLog.started_at) })}</p>
           )}
-        </section>
+        </Card>
 
-        <BigLink href="/driver/start" enabled={canStart} className="bg-green-700" icon="▶">
-          {t("home.startShift")}
-        </BigLink>
-        <BigLink href="/driver/end" enabled={canEnd} className="bg-ink" icon="■">
-          {t("home.endShift")}
-        </BigLink>
-        <BigLink href="/driver/breakdown" enabled className="bg-red-600" icon="⚠️">
-          {t("home.breakdown")}
-        </BigLink>
+        <div className="flex flex-col gap-2">
+          <ActionLink href="/driver/start" enabled={canStart} variant="primary" icon={Play}>
+            {t("home.startShift")}
+          </ActionLink>
+          <ActionLink href="/driver/end" enabled={canEnd} variant="dark" icon={Square}>
+            {t("home.endShift")}
+          </ActionLink>
+          <ActionLink href="/driver/breakdown" enabled variant="danger" icon={TriangleAlert}>
+            {t("home.breakdown")}
+          </ActionLink>
+        </div>
 
-        <section>
-          <h2 className="mb-2 text-lg font-bold">{t("home.last3")}</h2>
-          {recent.length === 0 && <p className="text-slate-600">{t("home.noEntries")}</p>}
-          <ul className="flex flex-col gap-2">
+        <section className="flex flex-col gap-2">
+          <SectionTitle>{t("home.last3")}</SectionTitle>
+          <Card className="gap-0 py-0">
+            {recent.length === 0 && <p className="p-4 text-sm text-muted-foreground">{t("home.noEntries")}</p>}
             {recent.map((log) => (
-              <li key={log.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-300 bg-white p-3">
-                <div>
-                  <p className="font-bold">{formatDate(log.log_date, dateLocale(lang))}</p>
-                  <p className="text-sm tabular-nums text-slate-600">
+              <div key={log.id} className="flex items-center justify-between gap-3 border-b px-4 py-3 last:border-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{formatDate(log.log_date, dateLocale(lang))}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
                     {fmt(num(log.opening_reading))} → {log.closing_reading == null ? "…" : fmt(num(log.closing_reading))}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="flex flex-col items-end gap-1">
                   {log.worked != null && (
-                    <p className="text-lg font-extrabold tabular-nums">
-                      {fmt(num(log.worked))} {unit}
+                    <p className="text-sm font-semibold tabular-nums">
+                      {fmt(num(log.worked))} <span className="font-normal text-muted-foreground">{unit}</span>
                     </p>
                   )}
-                  <Badge status={log.status ?? "running"} label={t(`status.${log.status ?? "running"}`)} />
+                  <StatusBadge status={log.status ?? "running"} label={t(`status.${log.status ?? "running"}`)} />
                 </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </Card>
         </section>
 
         <LangSwitch lang={lang} />
       </main>
     </>
-  );
-}
-
-function BigLink({
-  href,
-  enabled,
-  className,
-  icon,
-  children,
-}: {
-  href: string;
-  enabled: boolean;
-  className: string;
-  icon: string;
-  children: React.ReactNode;
-}) {
-  const base = "flex h-20 items-center gap-4 rounded-2xl px-6 text-2xl font-extrabold shadow";
-  if (!enabled) {
-    return (
-      <div aria-disabled className={`${base} bg-slate-300 text-slate-500 shadow-none`}>
-        <span aria-hidden>{icon}</span>
-        {children}
-      </div>
-    );
-  }
-  return (
-    <Link href={href} className={`${base} ${className} text-white active:scale-[0.98]`}>
-      <span aria-hidden>{icon}</span>
-      {children}
-    </Link>
   );
 }

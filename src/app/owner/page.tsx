@@ -2,20 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+import { ChevronLeft, ChevronRight, CircleAlert, Fuel, MessageCircle, Phone, RefreshCw, TriangleAlert } from "lucide-react";
 import { addDays, formatDate, formatTime, todayIST, yesterdayIST } from "@/lib/date";
 import { loadReport, useClientValue, whatsappUrl, type MachineRow, type Report } from "@/lib/owner";
+import { fmt } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { num } from "@/lib/types";
-import { Badge, Notice, Spinner, TopBar, fmt } from "@/components/ui";
+import { AppHeader, ListSkeleton, LogoutButton, Notice, SectionTitle, StatusBadge } from "@/components/common";
 import { PhotoThumb } from "@/components/Photo";
 import { MarkFixedButton } from "@/components/MarkFixed";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const TYPE_LABEL = { excavator: "Excavator", jcb: "JCB / Backhoe", tipper: "Tipper", roller: "Roller", other: "Other" };
 const STATUS_LABEL = { worked: "Worked", idle: "Idle", breakdown: "Breakdown", missing: "Missing", inactive: "Inactive" };
 
 export default function MorningReport() {
-  const router = useRouter();
   const yesterday = useClientValue(yesterdayIST);
   const today = useClientValue(todayIST);
   const [picked, setPicked] = useState<string | null>(null);
@@ -37,156 +41,185 @@ export default function MorningReport() {
     };
   }, [date, key]);
 
-  async function logout() {
-    await supabase().auth.signOut();
-    router.replace("/login");
-  }
-
   const report = result?.report;
 
   return (
     <>
-      <TopBar
+      <AppHeader
         title="Morning Report"
-        right={
-          <button
-            onClick={() => setRefreshKey((k) => k + 1)}
-            disabled={loading}
-            aria-label="Refresh"
-            className="h-12 w-12 rounded-lg text-2xl disabled:animate-spin disabled:opacity-60"
-          >
-            ↻
-          </button>
+        subtitle={date ? formatDate(date) : undefined}
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-11 text-muted-foreground"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              disabled={loading}
+              aria-label="Refresh"
+              title="Refresh"
+            >
+              <RefreshCw className={cn("size-5", loading && "animate-spin")} />
+            </Button>
+            <LogoutButton />
+          </>
         }
-      />
+      >
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-10 rounded-lg"
+            onClick={() => date && setPicked(addDays(date, -1))}
+            disabled={!date}
+            aria-label="Previous day"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Input
+            type="date"
+            value={date ?? ""}
+            max={today ?? undefined}
+            onChange={(e) => e.target.value && setPicked(e.target.value)}
+            className="h-10 min-w-0 flex-1 rounded-lg bg-white text-sm font-medium md:text-sm"
+            aria-label="Report date"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-10 rounded-lg"
+            onClick={() => date && setPicked(addDays(date, 1))}
+            disabled={!date || (!!today && date >= today)}
+            aria-label="Next day"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      </AppHeader>
 
-      <main className="flex flex-col gap-4 p-4">
-        {date && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPicked(addDays(date, -1))}
-              aria-label="Previous day"
-              className="h-12 w-12 shrink-0 rounded-xl border-2 border-slate-300 bg-white text-xl font-bold"
-            >
-              ‹
-            </button>
-            <input
-              type="date"
-              value={date}
-              max={today ?? undefined}
-              onChange={(e) => e.target.value && setPicked(e.target.value)}
-              className="h-12 min-w-0 flex-1 rounded-xl border-2 border-slate-300 bg-white px-3 text-lg font-bold"
-            />
-            <button
-              onClick={() => setPicked(addDays(date, 1))}
-              disabled={!!today && date >= today}
-              aria-label="Next day"
-              className="h-12 w-12 shrink-0 rounded-xl border-2 border-slate-300 bg-white text-xl font-bold disabled:opacity-40"
-            >
-              ›
-            </button>
-          </div>
-        )}
-
-        {!report && loading && <Spinner label="Loading report…" />}
-        {result?.error && !loading && <Notice kind="error">Could not load the report. Check the network and tap ↻.</Notice>}
+      <main className="flex flex-col gap-6 p-4">
+        {!report && loading && <ReportSkeleton />}
+        {result?.error && !loading && <Notice kind="error">Could not load the report. Check the network and tap refresh.</Notice>}
 
         {report && (
-          <div className={`flex flex-col gap-4 transition-opacity ${loading ? "opacity-50" : ""}`}>
-            <p className="text-center text-base font-semibold text-slate-600">{formatDate(report.date)}</p>
+          <div className={cn("flex flex-col gap-6 transition-opacity", loading && "opacity-60")}>
             <OpenBreakdowns report={report} onFixed={() => setRefreshKey((k) => k + 1)} />
             <Summary report={report} />
-            <a
-              href={whatsappUrl(report)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#25D366] text-lg font-extrabold text-ink shadow"
-            >
-              <span aria-hidden>💬</span> Share on WhatsApp
-            </a>
+            <Button asChild variant="outline" className="h-11 gap-2 rounded-xl bg-white text-sm font-medium">
+              <a href={whatsappUrl(report)} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="size-4 text-green-600" />
+                Share on WhatsApp
+              </a>
+            </Button>
             <MissingList rows={report.rows.filter((r) => r.status === "missing")} />
-            <section className="flex flex-col gap-3">
-              <h2 className="text-lg font-extrabold">All machines ({report.rows.length})</h2>
-              {report.rows.map((row) => (
-                <MachineCard key={row.machine.id} row={row} />
-              ))}
+            <section className="flex flex-col gap-2">
+              <SectionTitle>All machines · {report.rows.length}</SectionTitle>
+              <Card className="gap-0 py-0">
+                {report.rows.map((row) => (
+                  <MachineRowItem key={row.machine.id} row={row} />
+                ))}
+              </Card>
             </section>
           </div>
         )}
-
-        <button onClick={logout} className="mt-4 h-12 text-base font-semibold text-slate-600 underline">
-          Log out
-        </button>
       </main>
     </>
+  );
+}
+
+function ReportSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-busy aria-label="Loading report">
+      <div className="grid gap-2 sm:grid-cols-[4fr_3fr]">
+        <Skeleton className="h-[74px] rounded-xl" />
+        <Skeleton className="h-[74px] rounded-xl" />
+      </div>
+      <Skeleton className="h-11 rounded-xl" />
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-28" />
+        <ListSkeleton rows={6} />
+      </div>
+    </div>
   );
 }
 
 function OpenBreakdowns({ report, onFixed }: { report: Report; onFixed: () => void }) {
   if (report.openBreakdowns.length === 0) return null;
   return (
-    <section className="rounded-2xl border-4 border-red-600 bg-red-50 p-3">
-      <h2 className="mb-2 text-lg font-extrabold text-red-700">⚠️ Open breakdowns ({report.openBreakdowns.length})</h2>
-      <ul className="flex flex-col gap-2">
+    <section className="flex flex-col gap-2">
+      <SectionTitle>
+        <span className="inline-flex items-center gap-1.5 text-red-700">
+          <TriangleAlert className="size-3.5" /> Open breakdowns · {report.openBreakdowns.length}
+        </span>
+      </SectionTitle>
+      <Card className="gap-0 border-red-200 py-0">
         {report.openBreakdowns.map((b) => (
-          <li key={b.id} className="flex gap-3 rounded-xl bg-white p-3">
+          <div key={b.id} className="flex gap-3 border-b border-red-100 p-3 last:border-0">
             <PhotoThumb url={b.photoUrl} label={`${b.machineName} breakdown photo`} />
             <div className="min-w-0 flex-1">
-              <Link href={`/owner/machine/${b.machine_id}`} className="text-xl font-extrabold underline">
-                {b.machineName}
-              </Link>
-              <p className="text-sm text-slate-600">
-                {formatDate(todayIST(new Date(b.reported_at)))} · {formatTime(b.reported_at)}
-              </p>
-              {b.note && <p className="mt-1 text-base">{b.note}</p>}
-              {b.driver && (
-                <a href={`tel:${b.driver.mobile}`} className="mt-1 inline-block font-bold text-red-700 underline">
-                  📞 {b.driver.full_name}
-                </a>
-              )}
-              <MarkFixedButton id={b.id} machineName={b.machineName} onDone={onFixed} />
+              <div className="flex items-center justify-between gap-2">
+                <Link href={`/owner/machine/${b.machine_id}`} className="text-sm font-semibold hover:underline">
+                  {b.machineName}
+                </Link>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(todayIST(new Date(b.reported_at)))} · {formatTime(b.reported_at)}
+                </span>
+              </div>
+              {b.note && <p className="mt-0.5 text-sm text-zinc-700">{b.note}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <MarkFixedButton id={b.id} machineName={b.machineName} onDone={onFixed} />
+                {b.driver && (
+                  <Button asChild variant="ghost" size="sm" className="h-9 gap-1.5 rounded-lg px-2 text-[13px] text-muted-foreground">
+                    <a href={`tel:${b.driver.mobile}`}>
+                      <Phone className="size-3.5" />
+                      {b.driver.full_name}
+                    </a>
+                  </Button>
+                )}
+              </div>
             </div>
-          </li>
+          </div>
         ))}
-      </ul>
+      </Card>
     </section>
   );
 }
 
 function Summary({ report }: { report: Report }) {
   const { counts, totals } = report;
-  const tiles = [
-    { label: "Worked", value: counts.worked, cls: "bg-green-600 text-white" },
-    { label: "Idle", value: counts.idle, cls: "bg-amber-400 text-ink" },
-    { label: "Breakdown", value: counts.breakdown, cls: "bg-red-600 text-white" },
-    { label: "Missing", value: counts.missing, cls: counts.missing ? "bg-red-600 text-white ring-4 ring-red-300" : "bg-white text-ink" },
+  const kpis = [
+    { label: "Worked", value: counts.worked, dot: "bg-green-500" },
+    { label: "Idle", value: counts.idle, dot: "bg-amber-500" },
+    { label: "Breakdown", value: counts.breakdown, dot: "bg-red-500" },
+    { label: "Missing", value: counts.missing, dot: "bg-red-500", alert: counts.missing > 0 },
   ];
   return (
-    <section className="flex flex-col gap-2">
-      <div className="grid grid-cols-4 gap-2">
-        {tiles.map((t) => (
-          <div key={t.label} className={`rounded-xl p-2 text-center ${t.cls}`}>
-            <p className="text-3xl font-extrabold tabular-nums">{t.value}</p>
-            <p className="text-xs font-bold">{t.label}</p>
+    <div className="grid gap-2 sm:grid-cols-[4fr_3fr]">
+      <Card className="grid grid-cols-4 gap-0 divide-x py-0">
+        {kpis.map((k) => (
+          <div key={k.label} className="min-w-0 px-2.5 py-3">
+            <p className="truncate text-[11px] font-medium text-muted-foreground">{k.label}</p>
+            <p className={cn("mt-1 flex items-center gap-1.5 text-2xl font-semibold tracking-tight tabular-nums", k.alert && "text-red-700")}>
+              <span className={cn("size-1.5 shrink-0 rounded-full", k.dot)} aria-hidden />
+              {k.value}
+            </p>
           </div>
         ))}
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Total label="Engine hours" value={fmt(totals.hours)} unit="hrs" />
-        <Total label="Distance" value={fmt(totals.km, 0)} unit="km" />
-        <Total label="Diesel" value={fmt(totals.diesel, 0)} unit="L" />
-      </div>
-    </section>
+      </Card>
+      <Card className="grid grid-cols-3 gap-0 divide-x py-0">
+        <Total label="Engine hrs" value={fmt(totals.hours)} />
+        <Total label="Distance km" value={fmt(totals.km, 0)} />
+        <Total label="Diesel L" value={fmt(totals.diesel, 0)} />
+      </Card>
+    </div>
   );
 }
 
-function Total({ label, value, unit }: { label: string; value: string; unit: string }) {
+function Total({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border-2 border-slate-300 bg-white p-2 text-center">
-      <p className="text-xl font-extrabold tabular-nums">
-        {value} <span className="text-sm">{unit}</span>
-      </p>
-      <p className="text-xs font-bold text-slate-600">{label}</p>
+    <div className="px-3 py-3">
+      <p className="truncate text-[11px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
     </div>
   );
 }
@@ -194,68 +227,73 @@ function Total({ label, value, unit }: { label: string; value: string; unit: str
 function MissingList({ rows }: { rows: MachineRow[] }) {
   if (rows.length === 0) return null;
   return (
-    <section className="rounded-2xl border-4 border-red-600 bg-white p-3">
-      <h2 className="mb-2 text-lg font-extrabold text-red-700">❗ Missing entries ({rows.length})</h2>
-      <ul className="divide-y divide-slate-200">
+    <section className="flex flex-col gap-2">
+      <SectionTitle>
+        <span className="inline-flex items-center gap-1.5 text-red-700">
+          <CircleAlert className="size-3.5" /> Missing entries · {rows.length}
+        </span>
+      </SectionTitle>
+      <Card className="gap-0 border-red-200 py-0">
         {rows.map((r) => (
-          <li key={r.machine.id} className="flex items-center justify-between gap-2 py-2">
+          <div key={r.machine.id} className="flex items-center justify-between gap-3 border-b border-red-100 px-3 py-2.5 last:border-0">
             <div className="min-w-0">
-              <p className="text-lg font-extrabold">{r.machine.name}</p>
-              <p className="truncate text-sm text-slate-600">
+              <p className="text-sm font-semibold">{r.machine.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
                 {r.driver?.full_name ?? "No driver assigned"}
                 {r.running && " · shift not ended"}
               </p>
             </div>
             {r.driver && (
-              <a
-                href={`tel:${r.driver.mobile}`}
-                className="flex h-12 shrink-0 items-center gap-1 rounded-xl bg-red-600 px-4 font-bold text-white"
-              >
-                📞 {r.driver.mobile}
-              </a>
+              <Button asChild variant="outline" size="sm" className="h-10 shrink-0 gap-1.5 rounded-lg px-3 text-[13px] tabular-nums">
+                <a href={`tel:${r.driver.mobile}`}>
+                  <Phone className="size-3.5 text-red-600" />
+                  {r.driver.mobile}
+                </a>
+              </Button>
             )}
-          </li>
+          </div>
         ))}
-      </ul>
+      </Card>
     </section>
   );
 }
 
-function MachineCard({ row }: { row: MachineRow }) {
+function MachineRowItem({ row }: { row: MachineRow }) {
   const { machine, log, driver, site, status } = row;
   const unit = machine.reading_type === "hours" ? "hrs" : "km";
-  const border = { worked: "border-green-600", idle: "border-amber-400", breakdown: "border-red-600", missing: "border-red-600", inactive: "border-slate-300" }[status];
   const completed = log?.closing_reading != null;
 
   return (
-    <article className={`flex gap-3 rounded-2xl border-l-8 bg-white p-3 shadow-sm ${border}`}>
+    <div className="flex items-center gap-3 border-b px-3 py-3 transition-colors last:border-0 hover:bg-zinc-50">
       <Link href={`/owner/machine/${machine.id}`} className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-xl font-extrabold">{machine.name}</p>
-          <Badge status={status} label={STATUS_LABEL[status]} />
+          <p className="text-sm font-semibold">{machine.name}</p>
+          <StatusBadge status={status} label={STATUS_LABEL[status]} />
         </div>
-        <p className="text-sm text-slate-600">
-          {TYPE_LABEL[machine.type]} · {site?.name ?? "No site"}
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {TYPE_LABEL[machine.type]} · {site?.name ?? "No site"} · {driver?.full_name ?? "No driver"}
         </p>
-        <p className="truncate text-sm text-slate-600">{driver?.full_name ?? "No driver"}</p>
-        <p className="mt-1 text-base font-bold tabular-nums">
-          {completed ? `${fmt(num(log.worked))} ${unit}` : row.running ? "Shift running" : "—"}
-          {completed && <span className="font-semibold text-slate-600"> · ⛽ {fmt(num(log.diesel_litres), 0)} L</span>}
-        </p>
-        {log && (!log.start_photo_path || (completed && !log.end_photo_path)) && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {!log.start_photo_path && <NoPhotoTag which="start" />}
-            {completed && !log.end_photo_path && <NoPhotoTag which="end" />}
-          </div>
-        )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <span className="font-semibold text-foreground tabular-nums">
+            {completed ? `${fmt(num(log.worked))} ${unit}` : row.running ? "Shift running" : "—"}
+          </span>
+          {completed && (
+            <span className="inline-flex items-center gap-1 text-muted-foreground tabular-nums">
+              <Fuel className="size-3" />
+              {fmt(num(log.diesel_litres), 0)} L
+            </span>
+          )}
+          {log && <NoPhotoTag missingStart={!log.start_photo_path} missingEnd={completed && !log.end_photo_path} />}
+        </div>
       </Link>
       <PhotoThumb url={row.photoUrl} label={`${machine.name} meter photo`} />
-    </article>
+    </div>
   );
 }
 
-function NoPhotoTag({ which }: { which: "start" | "end" }) {
-  return (
-    <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">No photo · {which}</span>
-  );
+/** One small grey tag: "No photo" (both missing), or "No start photo" / "No end photo". */
+function NoPhotoTag({ missingStart, missingEnd }: { missingStart: boolean; missingEnd: boolean }) {
+  if (!missingStart && !missingEnd) return null;
+  const label = missingStart && missingEnd ? "No photo" : missingStart ? "No start photo" : "No end photo";
+  return <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-500">{label}</span>;
 }
