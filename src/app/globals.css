@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* High-contrast light theme only: readable in direct sunlight. */
+@theme {
+  --color-brand: #f59e0b;
+  --color-ink: #0f172a;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", sans-serif;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: #e2e8f0;
+  color: var(--color-ink);
+}
+
+/* Remove number spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
